@@ -1,75 +1,208 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Premier League Predictor</title>
-    <style>
-        body {
-            background-color: #0b0f1a;
-            color: white;
-            font-family: Arial, sans-serif;
-        }
-        .container {
-            max-width: 600px;
-            margin: auto;
-            padding: 20px;
-            background-color: #1e1e1e;
-            border-radius: 10px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-        }
-        .button {
-            background-color: #00c3ff;
-            color: #0b0f1a;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 16px;
-        }
-        .button:hover {
-            background-color: #009bb5;
-        }
-    </style>
+  <title>Premier League Predictor</title>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #0b0f1a;
+      color: white;
+    }
+
+    .header {
+      background: linear-gradient(90deg, #e50914, #0044ff);
+      padding: 15px;
+      font-size: 22px;
+      font-weight: bold;
+      text-align: center;
+    }
+
+    .container {
+      padding: 20px;
+      max-width: 400px;
+      margin: auto;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px;
+      margin-bottom: 10px;
+      border-radius: 8px;
+      border: none;
+      background: #1a2238;
+      color: white;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      background: #00c3ff;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      color: black;
+      margin-top: 10px;
+      cursor: pointer;
+    }
+
+    .card {
+      background: #12182b;
+      border-radius: 12px;
+      padding: 15px;
+      margin-top: 20px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.5);
+    }
+
+    .title {
+      font-size: 18px;
+      margin-bottom: 10px;
+      color: #00c3ff;
+    }
+
+    .prediction {
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 15px;
+      color: #fff200;
+    }
+
+    .score {
+      background: #1e2a47;
+      padding: 10px;
+      border-radius: 8px;
+      margin-top: 10px;
+    }
+
+    .odds {
+      color: #00ff9c;
+      font-size: 14px;
+    }
+
+    .loading {
+      color: #aaa;
+      margin-top: 10px;
+    }
+  </style>
 </head>
+
 <body>
-    <div class="container">
-        <h1>Premier League Predictor</h1>
-        <input type="text" id="team1" placeholder="Enter Team 1" />
-        <input type="text" id="team2" placeholder="Enter Team 2" />
-        <button class="button" onclick="predict()">Predict Score</button>
-        <div id="result"></div>
-    </div>
-    <script>
-        async function predict() {
-            const team1 = document.getElementById('team1').value;
-            const team2 = document.getElementById('team2').value;
 
-            const response = await fetch('https://api.example.com/odds'); // Replace with actual API endpoint
-            const data = await response.json();
+<div class="header">
+  ⚽ PREMIER LEAGUE AI
+</div>
 
-            let results = [];
-            for (let i = 0; i < 100; i++) {
-                const score1 = Math.floor(Math.random() * 5);
-                const score2 = Math.floor(Math.random() * 5);
-                results.push(`${team1} ${score1} - ${score2} ${team2}`);
-            }
+<div class="container">
 
-            const scoreCounts = {};
-            results.forEach(score => {
-                scoreCounts[score] = (scoreCounts[score] || 0) + 1;
-            });
+  <input id="match" placeholder="West Ham vs Wolves">
+  <input id="date" placeholder="10/04/2026">
 
-            const topScores = Object.entries(scoreCounts)
-                .sort(([, a], [, b]) => b - a)
-                .slice(0, 3);
+  <button onclick="predict()">Analyze Match</button>
 
-            const resultDiv = document.getElementById('result');
-            resultDiv.innerHTML = '<h2>Top 3 Most Likely Scorelines:</h2>';  
-            topScores.forEach(([score]) => {
-                resultDiv.innerHTML += `<p>${score}</p>`;
-            });
-        }
-    </script>
+  <div id="result"></div>
+
+</div>
+
+<script>
+async function predict() {
+  let match = document.getElementById("match").value.toLowerCase();
+  let resultDiv = document.getElementById("result");
+
+  if (!match) {
+    resultDiv.innerHTML = "Enter match";
+    return;
+  }
+
+  let teams = match.split("vs");
+  if (teams.length < 2) {
+    resultDiv.innerHTML = "Use: team1 vs team2";
+    return;
+  }
+
+  let home = teams[0].trim();
+  let away = teams[1].trim();
+
+  resultDiv.innerHTML = "<div class='loading'>🔍 Simulating matches...</div>";
+
+  try {
+    // ✅ Use CORS proxy to bypass browser restrictions
+    let response = await fetch(
+      "https://corsproxy.io/?" +
+      encodeURIComponent(
+        "https://api.the-odds-api.com/v4/sports/soccer_epl/odds/?apiKey=c395fabd53b7c3d3d8cd6cf6f8ef372a&regions=uk&markets=h2h"
+      )
+    );
+
+    let data = await response.json();
+    let foundMatch = data.find(game => 
+      (game.home_team + " " + game.away_team).toLowerCase().includes(home) &&
+      (game.home_team + " " + game.away_team).toLowerCase().includes(away)
+    );
+
+    if (!foundMatch) {
+      resultDiv.innerHTML = "❌ Match not found (check spelling)";
+      return;
+    }
+
+    let outcomes = foundMatch.bookmakers[0].markets[0].outcomes;
+    let homeOdds, awayOdds, drawOdds;
+
+    outcomes.forEach(o => {
+      if (o.name.toLowerCase().includes(home)) homeOdds = o.price;
+      else if (o.name.toLowerCase().includes(away)) awayOdds = o.price;
+      else drawOdds = o.price;
+    });
+
+    // convert odds to probabilities
+    let homeProb = (1 / homeOdds) * 100;
+    let awayProb = (1 / awayOdds) * 100;
+    let drawProb = (1 / drawOdds) * 100;
+
+    let total = homeProb + awayProb + drawProb;
+    homeProb = homeProb / total;
+    awayProb = awayProb / total;
+    drawProb = drawProb / total;
+
+    // simulate 100 matches
+    let results = {};
+    for (let i = 0; i < 100; i++) {
+      let rand = Math.random();
+      let homeGoals = Math.floor(Math.random() * 5 * homeProb + 0.5);
+      let awayGoals = Math.floor(Math.random() * 5 * awayProb + 0.5);
+      let score = `${homeGoals}-${awayGoals}`;
+      results[score] = (results[score] || 0) + 1;
+    }
+
+    // sort scores by most frequent
+    let sortedScores = Object.entries(results).sort((a,b) => b[1]-a[1]);
+
+    // display top 3
+    let output = `<div class="card">
+                    <div class="title">${foundMatch.home_team} vs ${foundMatch.away_team}</div>
+                    <div class="prediction">Most likely scorelines:</div>`;
+
+    sortedScores.slice(0,3).forEach(([score,count]) => {
+      let winner;
+      let [hg, ag] = score.split('-').map(Number);
+      if (hg > ag) winner = home;
+      else if (hg < ag) winner = away;
+      else winner = "DRAW";
+
+      output += `<div class="score">
+                  ${winner === "DRAW" ? "DRAW" : winner + " wins"} ${score} <br>
+                  ${count}/100 simulated matches
+                </div>`;
+    });
+
+    output += `</div>`;
+    resultDiv.innerHTML = output;
+
+  } catch (err) {
+    resultDiv.innerHTML = "❌ API Error: " + err;
+  }
+}
+</script>
+
 </body>
 </html>
