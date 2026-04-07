@@ -14,120 +14,95 @@
 </head>
 <body>
 
-<div class="header">⚒️ WEST HAM PREDICTOR</div>
+<div class="header">⚒️ WEST HAM MATCH PREDICTOR</div>
 <div class="container">
-  <div id="matches">Loading fixtures...</div>
+  <div id="matches"></div>
   <div id="result"></div>
 </div>
 
 <script>
-const API_KEY = "4d462e0edd4a473b8012c9b246108674"; // ✅ Your API key
-const TEAM_ID = 563; // West Ham United
+const fixtures = [
+  { home: "West Ham", away: "Liverpool", date: "2026-04-12T15:00:00Z" },
+  { home: "Chelsea", away: "West Ham", date: "2026-04-19T15:00:00Z" },
+  { home: "West Ham", away: "Man City", date: "2026-04-26T15:00:00Z" },
+  { home: "Arsenal", away: "West Ham", date: "2026-05-03T15:00:00Z" },
+  { home: "West Ham", away: "Tottenham", date: "2026-05-10T15:00:00Z" },
+];
 
-async function loadMatches() {
-  const matchesDiv = document.getElementById("matches");
-  matchesDiv.innerHTML = "Loading fixtures...";
+const lastResults = {
+  "West Ham": ["W","D","L","W","D"],
+  "Liverpool": ["W","W","L","D","W"],
+  "Chelsea": ["L","D","W","W","L"],
+  "Man City": ["W","W","W","D","W"],
+  "Arsenal": ["D","L","W","D","L"],
+  "Tottenham": ["W","L","D","W","L"]
+};
 
-  try {
-    const res = await fetch(`https://api.football-data.org/v4/teams/${TEAM_ID}/matches?status=SCHEDULED`, {
-      headers: { "X-Auth-Token": API_KEY }
-    });
-    if(!res.ok) throw new Error(res.status + " " + res.statusText);
-
-    const data = await res.json();
-
-    if(!data.matches || data.matches.length === 0) {
-      matchesDiv.innerHTML = "⚠️ No upcoming fixtures found";
-      return;
-    }
-
-    matchesDiv.innerHTML = "";
-    data.matches.slice(0,5).forEach(match => {
-      const div = document.createElement("div");
-      div.className = "match";
-      div.innerHTML = `
-        ${match.homeTeam.name} vs ${match.awayTeam.name}
-        <br><small>${new Date(match.utcDate).toLocaleString()}</small>
-      `;
-      div.onclick = () => simulate(match);
-      matchesDiv.appendChild(div);
-    });
-
-  } catch(err) {
-    console.error(err);
-    matchesDiv.innerHTML = "❌ Error loading fixtures: " + err;
-  }
+// Calculate team strength from last 5 results
+function getStrength(team){
+  let points = lastResults[team].reduce((acc,res)=>{
+    if(res==="W") return acc+3;
+    if(res==="D") return acc+1;
+    return acc;
+  },0);
+  return 1 + points/10; // scale for simulation
 }
 
-async function getForm(teamId) {
-  try {
-    const res = await fetch(`https://api.football-data.org/v4/teams/${teamId}/matches?status=FINISHED&limit=5`, {
-      headers: { "X-Auth-Token": API_KEY }
-    });
-    if(!res.ok) throw new Error(res.status + " " + res.statusText);
-
-    const data = await res.json();
-    let form = [], strength = 0;
-
-    data.matches.slice(0,5).forEach(m => {
-      const isHome = m.homeTeam.id === teamId;
-      const gf = isHome ? m.score.fullTime.home : m.score.fullTime.away;
-      const ga = isHome ? m.score.fullTime.away : m.score.fullTime.home;
-
-      if(gf > ga){ form.push("W"); strength+=3; }
-      else if(gf === ga){ form.push("D"); strength+=1; }
-      else{ form.push("L"); }
-    });
-
-    return { form: form.join(" "), strength };
-
-  } catch(err) {
-    console.error(err);
-    throw new Error("Failed to get team form: " + err);
-  }
+// Generate goals biased towards realistic football scores
+function generateGoals(strength){
+  // Weighted random: 0-3 goals likely, 4-5 very rare
+  const rand = Math.random() * strength;
+  if(rand < 1) return 0;
+  if(rand < 2) return 1;
+  if(rand < 3) return 2;
+  if(rand < 4) return 3;
+  if(rand < 4.5) return 4;
+  return 5;
 }
 
-async function simulate(match){
-  const resultDiv = document.getElementById("result");
-  resultDiv.innerHTML = "Analyzing form + simulating...";
-
-  try {
-    const home = await getForm(match.homeTeam.id);
-    const away = await getForm(match.awayTeam.id);
-
-    let homeStrength = 1 + (home.strength/10) + 0.3; // home advantage
-    let awayStrength = 1 + (away.strength/10);
-
-    let results = {};
-    for(let i=0;i<100;i++){
-      let hg = Math.floor(Math.random()*4*homeStrength);
-      let ag = Math.floor(Math.random()*4*awayStrength);
-      const score = `${hg}-${ag}`;
-      results[score] = (results[score] || 0) + 1;
-    }
-
-    let sorted = Object.entries(results).sort((a,b)=>b[1]-a[1]);
-
-    let output = `<div class="card">
-      <b>${match.homeTeam.name} vs ${match.awayTeam.name}</b>
-      <div class="form">Home Form: ${home.form}</div>
-      <div class="form">Away Form: ${away.form}</div>
-      <br><b>Top Predictions:</b>
-    `;
-    sorted.slice(0,3).forEach(([score,count])=>{
-      output += `<div class="score">${score} → ${count}/100</div>`;
-    });
-    output += "</div>";
-
-    resultDiv.innerHTML = output;
-
-  } catch(err) {
-    resultDiv.innerHTML = "❌ Error simulating match: " + err;
-  }
+// Display upcoming fixtures
+function displayFixtures(){
+  const container = document.getElementById("matches");
+  container.innerHTML = "";
+  fixtures.forEach(f=>{
+    const div = document.createElement("div");
+    div.className="match";
+    div.innerHTML = `${f.home} vs ${f.away}<br><small>${new Date(f.date).toLocaleString()}</small>`;
+    div.onclick = () => simulate(f);
+    container.appendChild(div);
+  });
 }
 
-// Start app
-loadMatches();
+// Simulate 500 matches with form and home advantage
+function simulate(f){
+  const results = {};
+  const homeStrength = getStrength(f.home) + 0.3; // home advantage
+  const awayStrength = getStrength(f.away);
+
+  for(let i=0;i<500;i++){
+    const hg = generateGoals(homeStrength);
+    const ag = generateGoals(awayStrength);
+    const score = `${hg}-${ag}`;
+    results[score] = (results[score] || 0) + 1;
+  }
+
+  const sorted = Object.entries(results).sort((a,b)=>b[1]-a[1]);
+
+  let output = `<div class="card">
+    <b>${f.home} vs ${f.away}</b>
+    <div class="form">Home Form: ${lastResults[f.home].join(" ")}</div>
+    <div class="form">Away Form: ${lastResults[f.away].join(" ")}</div>
+    <br><b>Top Predictions:</b>
+  `;
+  sorted.slice(0,3).forEach(([score,count])=>{
+    output += `<div class="score">${score} → ${count}/500</div>`;
+  });
+  output += "</div>";
+
+  document.getElementById("result").innerHTML = output;
+}
+
+displayFixtures();
 </script>
 
 </body>
