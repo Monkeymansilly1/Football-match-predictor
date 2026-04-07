@@ -7,12 +7,12 @@
     body {
       margin: 0;
       font-family: Arial;
-      background: #7a263a; /* West Ham claret */
+      background: #7a263a;
       color: white;
     }
 
     .header {
-      background: #1bb1e7; /* blue */
+      background: #1bb1e7;
       padding: 15px;
       text-align: center;
       font-weight: bold;
@@ -46,13 +46,18 @@
       margin-top: 10px;
       border-radius: 8px;
     }
+
+    .form {
+      margin-top: 10px;
+      font-weight: bold;
+    }
   </style>
 </head>
 
 <body>
 
 <div class="header">
-  ⚒️ WEST HAM MATCH PREDICTOR
+  ⚒️ WEST HAM PREDICTOR
 </div>
 
 <div class="container">
@@ -63,68 +68,137 @@
 </div>
 
 <script>
-const API_KEY = "YOUR_API_KEY"; // 🔴 PUT YOUR football-data key
+const API_KEY = "4d462e0edd4a473b8012c9b246108674"; // 🔴 ADD YOUR football-data KEY
 
-// Load West Ham matches
+// 🔥 Load West Ham fixtures
 async function loadMatches() {
+  let matchesDiv = document.getElementById("matches");
+
+  try {
+    let res = await fetch(
+      "https://api.allorigins.win/raw?url=" +
+      encodeURIComponent("https://api.football-data.org/v4/teams/563/matches?status=SCHEDULED"),
+      {
+        headers: { "X-Auth-Token": API_KEY }
+      }
+    );
+
+    let data = await res.json();
+    matchesDiv.innerHTML = "";
+
+    if (!data.matches || data.matches.length === 0) {
+      matchesDiv.innerHTML = "❌ No upcoming matches";
+      return;
+    }
+
+    data.matches.forEach(match => {
+      let div = document.createElement("div");
+      div.className = "match";
+
+      div.innerHTML = `
+        ${match.homeTeam.name} vs ${match.awayTeam.name}
+        <br><small>${new Date(match.utcDate).toLocaleString()}</small>
+      `;
+
+      div.onclick = () => simulate(match);
+
+      matchesDiv.appendChild(div);
+    });
+
+  } catch (err) {
+    matchesDiv.innerHTML = "❌ Error loading fixtures: " + err;
+  }
+}
+
+// 🔥 Get last 5 form
+async function getForm(teamId) {
   let res = await fetch(
-    "https://corsproxy.io/?https://api.football-data.org/v4/teams/563/matches?status=SCHEDULED",
+    "https://api.allorigins.win/raw?url=" +
+    encodeURIComponent(
+      `https://api.football-data.org/v4/teams/${teamId}/matches?status=FINISHED&limit=5`
+    ),
     {
       headers: { "X-Auth-Token": API_KEY }
     }
   );
 
   let data = await res.json();
-  let matchesDiv = document.getElementById("matches");
 
-  matchesDiv.innerHTML = "";
+  let form = [];
+  let score = 0;
 
-  data.matches.forEach(match => {
-    let div = document.createElement("div");
-    div.className = "match";
+  data.matches.slice(0,5).forEach(m => {
+    let isHome = m.homeTeam.id === teamId;
+    let gf = isHome ? m.score.fullTime.home : m.score.fullTime.away;
+    let ga = isHome ? m.score.fullTime.away : m.score.fullTime.home;
 
-    div.innerHTML = `
-      ${match.homeTeam.name} vs ${match.awayTeam.name}
-      <br><small>${new Date(match.utcDate).toLocaleString()}</small>
-    `;
-
-    div.onclick = () => simulate(match);
-
-    matchesDiv.appendChild(div);
+    if (gf > ga) {
+      form.push("W");
+      score += 3;
+    } else if (gf === ga) {
+      form.push("D");
+      score += 1;
+    } else {
+      form.push("L");
+    }
   });
+
+  return {
+    form: form.join(" "),
+    strength: score
+  };
 }
 
-// 100 simulation predictor
-function simulate(match) {
+// 🔥 Simulation with form
+async function simulate(match) {
+  let resultDiv = document.getElementById("result");
+  resultDiv.innerHTML = "Analyzing form + simulating...";
+
+  let home = await getForm(match.homeTeam.id);
+  let away = await getForm(match.awayTeam.id);
+
+  let homeStrength = 1 + (home.strength / 10);
+  let awayStrength = 1 + (away.strength / 10);
+
+  // home advantage
+  homeStrength += 0.3;
+
   let results = {};
 
   for (let i = 0; i < 100; i++) {
-    let homeGoals = Math.floor(Math.random() * 4);
-    let awayGoals = Math.floor(Math.random() * 4);
+    let hg = Math.floor(Math.random() * 4 * homeStrength);
+    let ag = Math.floor(Math.random() * 4 * awayStrength);
 
-    let score = homeGoals + "-" + awayGoals;
+    let score = `${hg}-${ag}`;
     results[score] = (results[score] || 0) + 1;
   }
 
   let sorted = Object.entries(results).sort((a,b) => b[1]-a[1]);
 
-  let output = `<div class="card">
-    <b>${match.homeTeam.name} vs ${match.awayTeam.name}</b>
-    <br><br>Top Predictions:
+  let output = `
+    <div class="card">
+      <b>${match.homeTeam.name} vs ${match.awayTeam.name}</b>
+
+      <div class="form">Home Form: ${home.form}</div>
+      <div class="form">Away Form: ${away.form}</div>
+
+      <br><b>Top Predictions:</b>
   `;
 
   sorted.slice(0,3).forEach(([score,count]) => {
-    output += `<div class="score">
-      ${score} → ${count}/100
-    </div>`;
+    output += `
+      <div class="score">
+        ${score} → ${count}/100
+      </div>
+    `;
   });
 
   output += "</div>";
 
-  document.getElementById("result").innerHTML = output;
+  resultDiv.innerHTML = output;
 }
 
-// load on start
+// start app
 loadMatches();
 </script>
 
