@@ -21,125 +21,112 @@
 </div>
 
 <script>
-const API_KEY = "PUT_YOUR_KEY_HERE"; // optional if you want real API
-const TEAM_ID = 563; // West Ham
+const API_KEY = "4d462e0edd4a473b8012c9b246108674"; // ✅ Your API key
+const TEAM_ID = 563; // West Ham United
 
-// Fallback mock fixtures in case API fails
-const mockFixtures = [
-  { homeTeam: {id: 563, name: "West Ham"}, awayTeam: {id: 64, name: "Liverpool"}, utcDate: new Date().toISOString() },
-  { homeTeam: {id: 563, name: "West Ham"}, awayTeam: {id: 61, name: "Chelsea"}, utcDate: new Date(Date.now()+86400000).toISOString() },
-  { homeTeam: {id: 563, name: "West Ham"}, awayTeam: {id: 65, name: "Manchester City"}, utcDate: new Date(Date.now()+2*86400000).toISOString() }
-];
-
-// Fallback mock last 5 results
-function mockForm() {
-  const outcomes = ["W","D","L"];
-  let form = [], score = 0;
-  for(let i=0;i<5;i++){
-    let o = outcomes[Math.floor(Math.random()*3)];
-    form.push(o);
-    if(o==="W") score+=3; else if(o==="D") score+=1;
-  }
-  return { form: form.join(" "), strength: score };
-}
-
-// Load matches (try API first)
 async function loadMatches() {
   const matchesDiv = document.getElementById("matches");
   matchesDiv.innerHTML = "Loading fixtures...";
 
-  let matches = [];
+  try {
+    const res = await fetch(`https://api.football-data.org/v4/teams/${TEAM_ID}/matches?status=SCHEDULED`, {
+      headers: { "X-Auth-Token": API_KEY }
+    });
+    if(!res.ok) throw new Error(res.status + " " + res.statusText);
 
-  if(API_KEY !== "PUT_YOUR_KEY_HERE") {
-    try {
-      const res = await fetch(`https://api.football-data.org/v4/teams/${TEAM_ID}/matches?status=SCHEDULED`, {
-        headers: { "X-Auth-Token": API_KEY }
-      });
-      if(!res.ok) throw new Error(res.status + " " + res.statusText);
-      const data = await res.json();
-      matches = data.matches.slice(0,5);
-    } catch(err) {
-      console.error(err);
+    const data = await res.json();
+
+    if(!data.matches || data.matches.length === 0) {
+      matchesDiv.innerHTML = "⚠️ No upcoming fixtures found";
+      return;
     }
+
+    matchesDiv.innerHTML = "";
+    data.matches.slice(0,5).forEach(match => {
+      const div = document.createElement("div");
+      div.className = "match";
+      div.innerHTML = `
+        ${match.homeTeam.name} vs ${match.awayTeam.name}
+        <br><small>${new Date(match.utcDate).toLocaleString()}</small>
+      `;
+      div.onclick = () => simulate(match);
+      matchesDiv.appendChild(div);
+    });
+
+  } catch(err) {
+    console.error(err);
+    matchesDiv.innerHTML = "❌ Error loading fixtures: " + err;
   }
-
-  if(matches.length === 0) matches = mockFixtures;
-
-  matchesDiv.innerHTML = "";
-  matches.forEach(match => {
-    const div = document.createElement("div");
-    div.className = "match";
-    div.innerHTML = `
-      ${match.homeTeam.name} vs ${match.awayTeam.name}
-      <br><small>${new Date(match.utcDate).toLocaleString()}</small>
-    `;
-    div.onclick = () => simulate(match);
-    matchesDiv.appendChild(div);
-  });
 }
 
-// Get last 5 form (API or mock)
 async function getForm(teamId) {
-  if(API_KEY === "PUT_YOUR_KEY_HERE") return mockForm();
-
   try {
     const res = await fetch(`https://api.football-data.org/v4/teams/${teamId}/matches?status=FINISHED&limit=5`, {
       headers: { "X-Auth-Token": API_KEY }
     });
     if(!res.ok) throw new Error(res.status + " " + res.statusText);
+
     const data = await res.json();
-    let form=[], score=0;
-    data.matches.slice(0,5).forEach(m=>{
+    let form = [], strength = 0;
+
+    data.matches.slice(0,5).forEach(m => {
       const isHome = m.homeTeam.id === teamId;
-      const gf = isHome? m.score.fullTime.home : m.score.fullTime.away;
-      const ga = isHome? m.score.fullTime.away : m.score.fullTime.home;
-      if(gf>ga){ form.push("W"); score+=3; }
-      else if(gf===ga){ form.push("D"); score+=1; }
-      else { form.push("L"); }
+      const gf = isHome ? m.score.fullTime.home : m.score.fullTime.away;
+      const ga = isHome ? m.score.fullTime.away : m.score.fullTime.home;
+
+      if(gf > ga){ form.push("W"); strength+=3; }
+      else if(gf === ga){ form.push("D"); strength+=1; }
+      else{ form.push("L"); }
     });
-    return { form: form.join(" "), strength: score };
+
+    return { form: form.join(" "), strength };
+
   } catch(err) {
     console.error(err);
-    return mockForm();
+    throw new Error("Failed to get team form: " + err);
   }
 }
 
-// Simulate match 100 times
 async function simulate(match){
   const resultDiv = document.getElementById("result");
   resultDiv.innerHTML = "Analyzing form + simulating...";
 
-  const home = await getForm(match.homeTeam.id);
-  const away = await getForm(match.awayTeam.id);
+  try {
+    const home = await getForm(match.homeTeam.id);
+    const away = await getForm(match.awayTeam.id);
 
-  let homeStrength = 1 + (home.strength/10) + 0.3; // home advantage
-  let awayStrength = 1 + (away.strength/10);
+    let homeStrength = 1 + (home.strength/10) + 0.3; // home advantage
+    let awayStrength = 1 + (away.strength/10);
 
-  let results = {};
-  for(let i=0;i<100;i++){
-    let hg = Math.floor(Math.random()*4*homeStrength);
-    let ag = Math.floor(Math.random()*4*awayStrength);
-    const score = `${hg}-${ag}`;
-    results[score] = (results[score] || 0)+1;
+    let results = {};
+    for(let i=0;i<100;i++){
+      let hg = Math.floor(Math.random()*4*homeStrength);
+      let ag = Math.floor(Math.random()*4*awayStrength);
+      const score = `${hg}-${ag}`;
+      results[score] = (results[score] || 0) + 1;
+    }
+
+    let sorted = Object.entries(results).sort((a,b)=>b[1]-a[1]);
+
+    let output = `<div class="card">
+      <b>${match.homeTeam.name} vs ${match.awayTeam.name}</b>
+      <div class="form">Home Form: ${home.form}</div>
+      <div class="form">Away Form: ${away.form}</div>
+      <br><b>Top Predictions:</b>
+    `;
+    sorted.slice(0,3).forEach(([score,count])=>{
+      output += `<div class="score">${score} → ${count}/100</div>`;
+    });
+    output += "</div>";
+
+    resultDiv.innerHTML = output;
+
+  } catch(err) {
+    resultDiv.innerHTML = "❌ Error simulating match: " + err;
   }
-
-  let sorted = Object.entries(results).sort((a,b)=>b[1]-a[1]);
-
-  let output = `<div class="card">
-    <b>${match.homeTeam.name} vs ${match.awayTeam.name}</b>
-    <div class="form">Home Form: ${home.form}</div>
-    <div class="form">Away Form: ${away.form}</div>
-    <br><b>Top Predictions:</b>
-  `;
-  sorted.slice(0,3).forEach(([score,count])=>{
-    output += `<div class="score">${score} → ${count}/100</div>`;
-  });
-  output += "</div>";
-
-  resultDiv.innerHTML = output;
 }
 
-// Start
+// Start app
 loadMatches();
 </script>
 
