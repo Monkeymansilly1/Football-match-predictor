@@ -1,22 +1,22 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Premier League Predictor</title>
+  <title>West Ham Predictor</title>
 
   <style>
     body {
       margin: 0;
-      font-family: Arial, sans-serif;
-      background: #0b0f1a;
+      font-family: Arial;
+      background: #7a263a; /* West Ham claret */
       color: white;
     }
 
     .header {
-      background: linear-gradient(90deg, #e50914, #0044ff);
+      background: #1bb1e7; /* blue */
       padding: 15px;
-      font-size: 22px;
-      font-weight: bold;
       text-align: center;
+      font-weight: bold;
+      font-size: 22px;
     }
 
     .container {
@@ -25,64 +25,26 @@
       margin: auto;
     }
 
-    input {
-      width: 100%;
+    .match {
+      background: #5c1d2c;
       padding: 12px;
+      border-radius: 10px;
       margin-bottom: 10px;
-      border-radius: 8px;
-      border: none;
-      background: #1a2238;
-      color: white;
-    }
-
-    button {
-      width: 100%;
-      padding: 12px;
-      background: #00c3ff;
-      border: none;
-      border-radius: 8px;
-      font-weight: bold;
-      color: black;
-      margin-top: 10px;
       cursor: pointer;
     }
 
     .card {
-      background: #12182b;
-      border-radius: 12px;
+      background: #3e1420;
       padding: 15px;
+      border-radius: 12px;
       margin-top: 20px;
-      box-shadow: 0 0 15px rgba(0,0,0,0.5);
-    }
-
-    .title {
-      font-size: 18px;
-      margin-bottom: 10px;
-      color: #00c3ff;
-    }
-
-    .prediction {
-      font-size: 18px;
-      font-weight: bold;
-      margin-bottom: 15px;
-      color: #fff200;
     }
 
     .score {
       background: #1e2a47;
       padding: 10px;
+      margin-top: 10px;
       border-radius: 8px;
-      margin-top: 10px;
-    }
-
-    .odds {
-      color: #00ff9c;
-      font-size: 14px;
-    }
-
-    .loading {
-      color: #aaa;
-      margin-top: 10px;
     }
   </style>
 </head>
@@ -90,125 +52,80 @@
 <body>
 
 <div class="header">
-  ⚽ PREMIER LEAGUE AI
+  ⚒️ WEST HAM MATCH PREDICTOR
 </div>
 
 <div class="container">
 
-  <input id="match" placeholder="West Ham vs Wolves">
-  <input id="date" placeholder="10/04/2026">
-
-  <button onclick="predict()">Analyze Match</button>
-
+  <div id="matches">Loading fixtures...</div>
   <div id="result"></div>
 
 </div>
 
 <script>
-async function predict() {
-  let match = document.getElementById("match").value.toLowerCase();
-  let resultDiv = document.getElementById("result");
+const API_KEY = "YOUR_API_KEY"; // 🔴 PUT YOUR football-data key
 
-  if (!match) {
-    resultDiv.innerHTML = "Enter match";
-    return;
-  }
-
-  let teams = match.split("vs");
-  if (teams.length < 2) {
-    resultDiv.innerHTML = "Use: team1 vs team2";
-    return;
-  }
-
-  let home = teams[0].trim();
-  let away = teams[1].trim();
-
-  resultDiv.innerHTML = "<div class='loading'>🔍 Simulating matches...</div>";
-
-  try {
-    // ✅ Use CORS proxy to bypass browser restrictions
-    let response = await fetch(
-      "https://corsproxy.io/?" +
-      encodeURIComponent(
-        "https://api.the-odds-api.com/v4/sports/soccer_epl/odds/?apiKey=c395fabd53b7c3d3d8cd6cf6f8ef372a&regions=uk&markets=h2h"
-      )
-    );
-
-    let data = await response.json();
-    let foundMatch = data.find(game => {
-  let h = game.home_team.toLowerCase();
-  let a = game.away_team.toLowerCase();
-
-  return (
-    (h.includes(home) || home.includes(h)) &&
-    (a.includes(away) || away.includes(a))
+// Load West Ham matches
+async function loadMatches() {
+  let res = await fetch(
+    "https://corsproxy.io/?https://api.football-data.org/v4/teams/563/matches?status=SCHEDULED",
+    {
+      headers: { "X-Auth-Token": API_KEY }
+    }
   );
-});
-  
 
-    
-    if (!foundMatch) {
-      resultDiv.innerHTML = "❌ Match not found (check spelling)";
-      return;
-    }
+  let data = await res.json();
+  let matchesDiv = document.getElementById("matches");
 
-    let outcomes = foundMatch.bookmakers[0].markets[0].outcomes;
-    let homeOdds, awayOdds, drawOdds;
+  matchesDiv.innerHTML = "";
 
-    outcomes.forEach(o => {
-      if (o.name.toLowerCase().includes(home)) homeOdds = o.price;
-      else if (o.name.toLowerCase().includes(away)) awayOdds = o.price;
-      else drawOdds = o.price;
-    });
+  data.matches.forEach(match => {
+    let div = document.createElement("div");
+    div.className = "match";
 
-    // convert odds to probabilities
-    let homeProb = (1 / homeOdds) * 100;
-    let awayProb = (1 / awayOdds) * 100;
-    let drawProb = (1 / drawOdds) * 100;
+    div.innerHTML = `
+      ${match.homeTeam.name} vs ${match.awayTeam.name}
+      <br><small>${new Date(match.utcDate).toLocaleString()}</small>
+    `;
 
-    let total = homeProb + awayProb + drawProb;
-    homeProb = homeProb / total;
-    awayProb = awayProb / total;
-    drawProb = drawProb / total;
+    div.onclick = () => simulate(match);
 
-    // simulate 100 matches
-    let results = {};
-    for (let i = 0; i < 100; i++) {
-      let rand = Math.random();
-      let homeGoals = Math.floor(Math.random() * 5 * homeProb + 0.5);
-      let awayGoals = Math.floor(Math.random() * 5 * awayProb + 0.5);
-      let score = `${homeGoals}-${awayGoals}`;
-      results[score] = (results[score] || 0) + 1;
-    }
-
-    // sort scores by most frequent
-    let sortedScores = Object.entries(results).sort((a,b) => b[1]-a[1]);
-
-    // display top 3
-    let output = `<div class="card">
-                    <div class="title">${foundMatch.home_team} vs ${foundMatch.away_team}</div>
-                    <div class="prediction">Most likely scorelines:</div>`;
-
-    sortedScores.slice(0,3).forEach(([score,count]) => {
-      let winner;
-      let [hg, ag] = score.split('-').map(Number);
-      if (hg > ag) winner = home;
-      else if (hg < ag) winner = away;
-      else winner = "DRAW";
-
-      output += `<div class="score">
-                  ${winner === "DRAW" ? "DRAW" : winner + " wins"} ${score} <br>
-                  ${count}/100 simulated matches
-                </div>`;
-    });
-
-    output += `</div>`;
-    resultDiv.innerHTML = output;
-
-  } catch (err) {
-    resultDiv.innerHTML = "❌ API Error: " + err;
-  }
+    matchesDiv.appendChild(div);
+  });
 }
+
+// 100 simulation predictor
+function simulate(match) {
+  let results = {};
+
+  for (let i = 0; i < 100; i++) {
+    let homeGoals = Math.floor(Math.random() * 4);
+    let awayGoals = Math.floor(Math.random() * 4);
+
+    let score = homeGoals + "-" + awayGoals;
+    results[score] = (results[score] || 0) + 1;
+  }
+
+  let sorted = Object.entries(results).sort((a,b) => b[1]-a[1]);
+
+  let output = `<div class="card">
+    <b>${match.homeTeam.name} vs ${match.awayTeam.name}</b>
+    <br><br>Top Predictions:
+  `;
+
+  sorted.slice(0,3).forEach(([score,count]) => {
+    output += `<div class="score">
+      ${score} → ${count}/100
+    </div>`;
+  });
+
+  output += "</div>";
+
+  document.getElementById("result").innerHTML = output;
+}
+
+// load on start
+loadMatches();
 </script>
 
 </body>
